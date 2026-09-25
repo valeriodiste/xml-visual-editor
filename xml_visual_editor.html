@@ -1,0 +1,1804 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>XML Visual Editor</title>
+<style>
+    :root {
+        --bg: #171a1f;
+        --panel: #20242b;
+        --panel-2: #272c34;
+        --border: #3a414c;
+        --text: #e8ecf1;
+        --muted: #9ba5b2;
+        --accent: #5fa8ff;
+        --accent-2: #2d78c7;
+        --accent-alt: #52db60;
+        --accent-alt-2: #27b238;
+        --danger: #e26b6b;
+        --input: #14171b;
+        --tree-line: #4a525e;
+        --radius: 8px;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body { height: 100%; margin: 0; }
+
+    body {
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    header {
+        background: #111318;
+        border-bottom: 1px solid var(--border);
+        padding: 12px 14px;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        flex-wrap: wrap;
+    }
+
+    header h1 {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+    .toolbar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    button, .file-button {
+        border: 1px solid var(--border);
+        background: var(--panel-2);
+        color: var(--text);
+        border-radius: 6px;
+        padding: 7px 10px;
+        font: inherit;
+        font-size: 13px;
+        cursor: pointer;
+        transition: background .15s, border-color .15s;
+    }
+
+    button:hover, .file-button:hover {
+        background: #303741;
+        border-color: #596371;
+    }
+
+    button.primary {
+        background: var(--accent-2);
+        border-color: var(--accent-2);
+    }
+
+    button.primary:hover { 
+        background: #3686d8;
+    }
+
+    button.secondary {
+        background: var(--accent-alt-2);
+        border-color: var(--accent-alt-2);
+    }
+
+    button.secondary:hover { 
+        background: #36d856; 
+    }
+
+    button.danger { color: #ffd6d6; }
+
+    button.undoRedoBtn {
+        border-radius: 2000px;
+    }
+
+    .status {
+        margin-left: auto;
+        max-width: 45vw;
+        display: inline-flex;
+        flex-wrap: nowrap;
+        flex-direction: row;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .status-text {
+        color: var(--muted);
+        font-size: 12px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        margin-right: 2px;
+    }
+
+    #app {
+        flex: 1;
+        min-height: 0;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1px;
+        background: var(--border);
+    }
+
+    .pane {
+        min-width: 0;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        background: var(--panel);
+    }
+
+    .pane-header {
+        min-height: 42px;
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        background: #1b1f25;
+    }
+
+    .pane-title { font-size: 13px; font-weight: 700; }
+    .pane-subtitle { color: var(--muted); font-size: 11px; }
+
+    #editor {
+        overflow: auto;
+        padding: 12px 14px 30px;
+        height: 100%;
+    }
+
+    #xmlOutput {
+        width: 100%;
+        height: 100%;
+        resize: none;
+        border: 0;
+        outline: 0;
+        background: #111318;
+        color: #dce3eb;
+        padding: 14px;
+        font: 13px/1.55 "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+        tab-size: 2;
+    }
+
+    .node {
+        position: relative;
+        margin-left: 16px;
+        padding-left: 13px;
+        border-left: 1px solid var(--tree-line);
+    }
+
+    .node::before {
+        content: "";
+        position: absolute;
+        left: -1px;
+        top: 17px;
+        width: 10px;
+        border-top: 1px solid var(--tree-line);
+    }
+
+    .node.root {
+        margin-left: 0;
+        border-left: 0;
+        padding-left: 0;
+    }
+
+    .node.root::before { display: none; }
+
+    .node-hidden > .node {
+        display: none !important;
+    }
+    
+    .node-hidden .node-body {
+        display: none !important;
+    }
+
+    .node-hidden .node-tag {
+        opacity: 0.5;
+    }
+    
+    .node-hidden .node-tag:after {
+        content: " (collapsed)";
+        font-size: 11px;
+        color: var(--muted);
+    }
+
+    .node-hidden .node-meta-container {
+        opacity: 0.5;
+    }
+
+    .node-card {
+        border: 1px solid var(--border);
+        background: #1b1f25;
+        border-radius: var(--radius);
+        margin-bottom: 8px;
+        overflow: hidden;
+    }
+
+    .node-head {
+        padding: 8px 10px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        border-bottom: 1px solid #303641;
+        background: #21262e;
+        cursor: pointer;
+    }
+
+    .node-tag {
+        color: #8fc4ff;
+        font-family: "SFMono-Regular", Consolas, monospace;
+        font-size: 13px;
+        font-weight: 700;
+        user-select: none;
+    }
+
+    .node-meta-container {
+        margin-left: auto;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .node-meta {
+        color: var(--muted);
+        font-size: 11px;
+    }
+
+    .focus-btn {
+        border-radius: 2000px;
+        max-width: 24px;
+        max-height: 24px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .node-body { padding: 9px 10px; }
+
+    .section-label {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: .08em;
+        color: var(--muted);
+        margin: 2px 0 6px;
+    }
+
+    .attribute-list {
+        display: grid;
+        gap: 6px;
+    }
+
+    .attribute-row {
+        display: grid;
+        grid-template-columns: minmax(90px, 0.45fr) minmax(120px, 1fr);
+        gap: 7px;
+        align-items: center;
+    }
+
+    .attribute-name {
+        font: 12px "SFMono-Regular", Consolas, monospace;
+        color: #b7c0ca;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    input[type="text"] {
+        width: 100%;
+        border: 1px solid var(--border);
+        border-radius: 5px;
+        background: var(--input);
+        color: var(--text);
+        padding: 6px 8px;
+        font: 12px "SFMono-Regular", Consolas, monospace;
+        outline: none;
+    }
+
+    input[type="text"]:focus {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 2px rgba(95,168,255,.12);
+    }
+
+    .text-editor { margin-top: 5px; }
+
+    .empty-state {
+        height: 100%;
+        min-height: 260px;
+        display: grid;
+        place-items: center;
+        text-align: center;
+        color: var(--muted);
+        padding: 40px;
+    }
+
+    .empty-state strong { color: var(--text); }
+
+    .inline-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    select {
+        max-width: min(420px, 45vw);
+        border: 1px solid var(--border);
+        background: var(--input);
+        color: var(--text);
+        border-radius: 6px;
+        padding: 7px 9px;
+        outline: 0;
+        font: inherit;
+        font-size: 13px;
+    }
+
+    .inline-row-alt {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        border-top: 1px solid var(--border);
+        padding: 8px 12px;
+        font-size: 13px;
+    }
+    .findBtn {
+        /* border-radius: 2000px; */
+        padding: 6px 12px;
+        white-space: nowrap;
+    }
+
+    .node-card.highlight {
+        border: 1px solid var(--accent);
+    }
+    .node-card.highlight .node-head {
+        background: #223144;
+    }
+    .node-card.highlight .node-body {
+        background: #223144;
+    }
+    
+    /* Highlight nodes if they are hidden and their child nodes have highlighted elements */
+    .node-hidden:has(.node-card.highlight) .node-card {
+        border: 1px solid var(--accent);
+    }
+    .node-hidden:has(.node-card.highlight) .node-head {
+        background: #223144;
+    }
+    .node-hidden:has(.node-card.highlight) .node-body {
+        background: #223144;
+    }
+
+    .hidden { display: none !important; }
+
+    @media (max-width: 900px) {
+        body { overflow: auto; }
+        #app { grid-template-columns: 1fr; min-height: 100vh; }
+        .pane { min-height: 48vh; }
+        .status { width: 100%; margin-left: 0; max-width: 100%; }
+    }
+</style>
+</head>
+<body>
+<header>
+    <h1>XML Visual Editor</h1>
+
+    <div class="toolbar">
+
+        <label class="file-button">
+            Upload XML
+            <input id="fileInput" type="file" accept=".xml,text/xml,application/xml" hidden>
+        </label>
+
+        <button id="formatBtn" class="secondary hidden">Create XML</button>
+
+        <button id="reparseBtn" class="primary">Refresh Editor</button>
+
+        <button id="chooseFolderBtn" class="hidden">Choose XML folder</button>
+        <select id="localFiles" class="hidden" title="XML files found in the selected folder">
+            <option value="">No local folder selected</option>
+        </select>
+
+        <button id="resetBtn" class="danger hidden">Reset</button>
+
+    </div>
+
+    <div id="status" class="status">
+        <div id="statusText" class="status-text">Ready</div>
+        <button id="undoBtn" class="undoRedoBtn">Undo</button>
+        <button id="redoBtn" class="undoRedoBtn">Redo</button>
+    </div>
+</header>
+
+<main id="app">
+    <section class="pane">
+        <div class="pane-header">
+            <div>
+                <div class="pane-title">Visual editor</div>
+                <div class="pane-subtitle">Edit each existing attribute and simple text node</div>
+            </div>
+        </div>
+        <div id="editor">
+            <div class="empty-state">
+                <div>
+                    <strong>No XML loaded</strong><br>
+                    Upload an XML file.
+                </div>
+            </div>
+        </div>
+            
+        <footer>
+            <div class="inline-row-alt searchContainer" >
+                <label for="searchInput">Search:</label>
+                <input type="text" id="searchInput" placeholder="Search XML nodes...">
+                <button id="findNextBtn" class="findBtn primary">Find Next</button>
+                <button id="findPrevBtn" class="findBtn">Find Prev</button>
+            </div>
+        </footer>
+
+    </section>
+
+    <section class="pane">
+        <div class="pane-header">
+            <div>
+                <div class="pane-title">XML output</div>
+                <div class="pane-subtitle">You can edit this directly, then press “Refresh Editor”</div>
+            </div>
+        </div>
+        <textarea id="xmlOutput" spellcheck="false"></textarea>
+    </section>
+</main>
+
+
+<script>
+(() => {
+    "use strict";
+
+    const SAMPLE_XML_ALT = null;
+    const SAMPLE_XML = `<?xml version="1.0" encoding="UTF-8"?>
+<!--
+	Author:   Leonardo Spa
+	
+	Contacts: Contacts: Leonardo focal points for project and SWIM activities
+	
+	Date & release:
+	- 05/03/2025
+	- release 1.0
+	
+	Abstract:
+			Illustrative FF-ICE Publication Message as per NM B2B FF-ICE Publication Service.
+			It represents an annotated and valid XML to be used as reference to build concrete messages.
+			This file is intended to be restricted to Leonardo activities concerning FF-ICE.
+	
+	References:
+	        1. NM B2B services documentation, https://doc.b2b.nm.eurocontrol.int/documentation
+	        2. NM IFPS Manual, https://www.eurocontrol.int/sites/default/files/2024-05/eurocontrol-ifps-user-manual-maint-2-external.pdf
+	        3. Mapping ATS fields to FIXM, https://docs.fixm.aero/#/ats-message-to-fixm-mapping/mapping-of-ats-fields-to-fixm
+	        4. NM transition document, https://www.eurocontrol.int/sites/default/files/2024-07/eurocontrol-fpfde-ffice-r1-mixed-mode-transition-operations.pdf
+	TODO: 
+	To be further refined according to NM specificities
+	- 27.0.0/html/FFICE.html#FFICE.MessageRules.FlightType 
+	- FF-ICE Message templates from FIXM
+	
+ -->
+<ffice:FficePublicationMessage xmlns:common="eurocontrol/cfmu/b2b/CommonServices" 
+		xmlns:fb="http://www.fixm.aero/base/4.3" xmlns:ffice="eurocontrol/cfmu/b2b/FficeServices" 
+		xmlns:ffice1="http://www.fixm.aero/app/ffice/1.1" xmlns:fx="http://www.fixm.aero/flight/4.3" 
+		xmlns:nmext="http://www.eurocontrol.int/nm/fixm/ext/1.5" 
+		xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+		xsi:schemaLocation="eurocontrol/cfmu/b2b/FficeServices ./FficeServices_27.0.0.xsd" > 
+  <!-- Technical info , all mandatory -->
+  <uuid>97ba1f40-246b-4471-bddc-cb2e2caf3399</uuid>
+  <timestamp>2026-09-14 15:30:00 250</timestamp>
+  <messageExchangePattern>PUBLISH_SUBSCRIBE</messageExchangePattern>
+  <type>BUSINESS_MESSAGE</type>
+  <topic>FFICE_PUBLICATION</topic>
+  <subscriptionUuid>a9ee993b-e12f-4285-a7a3-46f31d86034f</subscriptionUuid>
+  <subscriptionVersion>1</subscriptionVersion>
+  <!-- For audit purposes. NM internal message-id -->
+  <parentMessageId>20231117220747IAT02225668</parentMessageId>
+  <!-- The flight -->
+  <flight_v4_3>
+    <!-- The aircraft (Optional) -->
+    <fx:aircraft>
+      <!-- All the elements are optional -->
+      <!-- ICAO 4444 Field 18 CODE -->
+      <fx:aircraftAddress>406B79</fx:aircraftAddress>
+      <!-- ICAO 4444 Field 18 PER -->
+      <fx:aircraftApproachCategory>C</fx:aircraftApproachCategory>
+      <fx:aircraftType>
+        <!-- ICAO 4444 Field 9a -->
+        <!--emerg
+          Use the sum of all of the individual FIXM aircraftCounts to determine field 9a. If the sum is greater than 99, set field 9a to 99.
+        -->
+        <!-- ICAO 4444 Field 18 TYP [9b=ZZZZ] -->
+        <fx:aircraftCount>1</fx:aircraftCount>
+        <!-- ICAO 4444 Field 9b -->
+        <!-- ICAO 4444 Field 18 TYP [9b=ZZZZ] -->
+        <fx:icaoAircraftTypeDesignator>A321</fx:icaoAircraftTypeDesignator>
+        <!-- one of fx:icaoAircraftTypeDesignator, fx:otherAircraftType (specific NM rule on this)
+         -->
+      </fx:aircraftType>
+      <!-- ICAO 4444 Field 10 -->
+      <fx:capabilities>
+        <fx:communication>
+          <!-- ICAO 4444 Field 10a -->
+          <fx:communicationCapabilityCode>E2 E3 H M1 Y</fx:communicationCapabilityCode>
+          <!-- ICAO 4444 Field 10a -->
+          <fx:datalinkCommunicationCapabilityCode>J3 J5</fx:datalinkCommunicationCapabilityCode>
+          <!-- ICAO 4444 Field 18 COM -->
+          <fx:otherCommunicationCapabilities>CPDLCX</fx:otherCommunicationCapabilities>
+          <!-- ICAO 4444 Field 18 DAT -->
+          <fx:otherDatalinkCapabilities>EMDF</fx:otherDatalinkCapabilities>
+          <!-- ICAO 4444 Field 18 SEL -->
+          <fx:selectiveCallingCode>MQDE</fx:selectiveCallingCode>
+        </fx:communication>
+        <fx:navigation>
+          <!-- ICAO 4444 Field 10a -->
+          <fx:navigationCapabilityCode>D F G I W X</fx:navigationCapabilityCode>
+          <!-- ICAO 4444 Field 18 NAV -->
+          <fx:otherNavigationCapabilities>RNAVX</fx:otherNavigationCapabilities>
+          <!-- ICAO 4444 Field 18 PBN --> 
+          <!-- 
+            If there are more than eight FIXM PBN codes, apply the rules defined in FF-ICE Implementation 
+            Guidance section 12.2.3 v) when translating to field 18 PBN.
+          -->
+          <fx:performanceBasedCode>A1 B1 D1 L1 S1</fx:performanceBasedCode>
+          <!-- 
+          <fx:requiredRunwayVisualRange uom="KM">0.075</fx:requiredRunwayVisualRange>
+          -->
+        </fx:navigation>
+        <!-- ICAO 4444 Field 10a -->
+        <fx:standardCapabilities>STANDARD</fx:standardCapabilities>
+        <fx:surveillance>
+          <!-- ICAO 4444 Field 18 SUR -->
+          <fx:otherSurveillanceCapabilities>RSP180 260B</fx:otherSurveillanceCapabilities>
+          <!-- ICAO 4444 Field 10b -->
+          <fx:surveillanceCapabilityCode>B1 D1 L</fx:surveillanceCapabilityCode>
+        </fx:surveillance>
+        <fx:survival>
+    		<fx:carriedEltHexIdentifier>1B71E26D012FDFF</fx:carriedEltHexIdentifier>
+    		<fx:dinghyInformation>
+        	<fx:colour>YELLOW</fx:colour>
+        	<fx:covered>COVERED</fx:covered>
+        	<fx:number>11</fx:number>
+        	<fx:totalCapacity>330</fx:totalCapacity>
+      		</fx:dinghyInformation>
+	</fx:survival>
+      </fx:capabilities>
+      <!-- ICAO registration number -->
+      <!-- ICAO 4444 Field 18 REG -->
+      <!-- 
+          If there is more than one FIXM registration, insert the first only in field 18 REG.
+      -->
+      <fx:registration>GVYGJ</fx:registration>
+      <!-- ICAO 4444 Field 9c -->
+      <fx:wakeTurbulence>H</fx:wakeTurbulence>
+    </fx:aircraft>
+    <!-- The actual arrival of the flight. -->
+    <fx:arrival>
+      <fx:destinationAerodrome>
+        <!--
+        	A four-letter code group formulated in accordance with rules prescribed by ICAO and assigned to the aerodrome. [Specialised from ICAO Annex 10] 
+        	The list of ICAO location indicators is provided by ICAO Doc 7910. 
+        	
+        	[16a≠ZZZZ]
+        	
+         -->
+        <!-- ICAO 4444 Field 16a -->
+        <fb:locationIndicator>LBSF</fb:locationIndicator>
+        <!-- 
+          The primary official name of an aerodrome as designated by an appropriate authority
+        -->
+        <!-- ICAO 4444 Field 18 DEST [16a=ZZZZ] -->
+        <fb:name>APTNAME</fb:name>
+        
+        <!-- The designated geographical location of an aerodrome -->
+        <!-- ICAO 4444 Field 18 DEST [16a=ZZZZ] 
+            arrival.destinationAerodrome.referencePoint
+                or 
+            arrival.destinationAerodrome.referenceRelativePoint
+        -->
+      </fx:destinationAerodrome>
+      <!-- An alternate aerodrome to which an aircraft may proceed should it become either impossible or inadvisable to land at the aerodrome of intended landing.  
+      		Same type as for fx:destinationAerodrome
+      -->
+      <!-- ICAO 4444 Field 16c
+          [16c≠ZZZZ] arrival.destinationAerodromeAlternate.locationIndicator If there are more than two FIXM destination alternates,
+          only the first two are used when translating to field 16c.
+      -->
+      <fx:destinationAerodromeAlternate>
+        <fb:locationIndicator>LROP</fb:locationIndicator>
+      </fx:destinationAerodromeAlternate>
+      <!-- Specifies the previous destination aerodrome value when a change is made
+      		Same type as for fx:destinationAerodrome
+      -->
+      
+      <fx:destinationAerodromePrevious>
+      <fb:locationIndicator>LBSF</fb:locationIndicator>
+      </fx:destinationAerodromePrevious>
+      
+      <!--
+      		The route details to the revised destination aerodrome, followed by the ICAO four-letter location indicator of
+      		the aerodrome. The revised route is subject to reclearance in flight. 
+       -->
+      <!-- ICAO 4444 Field 18 RIF -->
+      <!-- 
+      <fx:reclearanceInFlight>
+        <fx:filedRevisedDestinationAerodrome href="http://tempuri.org">
+        </fx:filedRevisedDestinationAerodrome>
+        <fx:routeToRevisedDestination>routeToRevisedDestination</fx:routeToRevisedDestination>
+      </fx:reclearanceInFlight>
+      -->
+    </fx:arrival>
+    <!-- Contains flight departure information -->
+    <fx:departure>
+      <!-- The time, type of time (wheels-off, off blocks, etc.), and geographical position of the departure.  -->
+      <fx:actualTimeOfDeparture>
+        <!-- The actual time of departure from the aerodrome. [ICAO Doc 4444, Appendix 3, Field Type 13] -->
+        <!-- ICAO 4444 Field 13b -->
+        <!--
+            [13a≠AFIL ∧ message∈{ALR,DEP,SPL}] departure.actualTimeOfDeparture.time
+        -->
+        <fx:time>2026-09-14T16:30:00Z</fx:time>
+        <!-- The type of departure time represented.
+        <fx:type>OFF_BLOCKS</fx:type>
+        -->
+      </fx:actualTimeOfDeparture>
+      <!-- Identifies a flight that has filed its flight plan while in the air, beginning its route description from a specified point en-route, and therefore may not have provided a departure aerodrome. -->
+      <!-- ICAO 4444 Field 13a -->
+      <!--
+          [13a≠AFIL ∧ 13a≠ZZZZ] departure.departureAerodrome.locationIndicator
+          [13a=AFIL] departure.airfileIndicator = AIRFILE
+      -->
+      <!-- 
+      <fx:airfileIndicator>AIRFILE</fx:airfileIndicator>
+      -->
+      <!-- The identifier of the departure airport slot allocated to the flight. -->
+      <!-- 
+      <fx:airportSlotIdentification>fx:airportSlotIdentification</fx:airportSlotIdentification>
+      -->
+      <!-- The aerodrome from which the flight departs. 
+      		Same tyoe as for fx:destinationAerodrome
+      		ADEP
+       -->
+      <fx:departureAerodrome>
+        <!-- ICAO 4444 Field 13a -->
+        <fb:locationIndicator>LIRF</fb:locationIndicator>
+        <!-- ICAO 4444 Field 18 DEP ([13a=ZZZZ])-->
+        <!--
+            name, 
+            departure.departureAerodrome.referencePoint
+              or
+            departure.departureAerodrome.referenceRelativePoint
+        -->
+        <fb:name>LIRF</fb:name>
+      </fx:departureAerodrome>
+      <!-- The first point of the route, for use when a departure aerodrome does not exist (such as when the flight plan is filed from the air) or is otherwise unknown
+      		Same type as for fx:departureAerodrome
+       -->
+      <!-- 
+      <fx:departureAerodromePrevious>
+      </fx:departureAerodromePrevious>
+      -->
+      <!-- The estimated time at which the aircraft will commence movement associated with departure.
+      		EOBD, EOBT
+      		
+      		[13a≠AFIL ∧ message∈{FPL,ARR,CHG,CNL,DLA,RQS,RQP}] departure.estimatedOffBlockTime
+       -->
+      <!-- ICAO 4444 Field 13b -->
+      <!-- ICAO 4444 Field 18 DOF ([13a≠AFIL])-->
+      <fx:estimatedOffBlockTime>2026-09-14T16:30:00Z</fx:estimatedOffBlockTime>
+      <!-- ICAO 4444 Field 13b -->
+      <!--
+          [13a=AFIL] departure.estimatedRouteStartTime
+      -->
+      
+    </fx:departure>
+    <!-- Groups emergency information (description, phase, position, etc) for the flight -->
+    <fx:emergency>
+      <!-- ICAO 4444 Field 5c -->
+      <fx:emergencyDescription>emergency description</fx:emergencyDescription>
+      <fx:originator>
+        <!-- ICAO 4444 Field 5b -->
+        <fb:atcUnitNameOrAlternate>ATCUO</fb:atcUnitNameOrAlternate>
+        <!-- ICAO 4444 Field 5b -->
+        <fb:locationIndicator>ABCD</fb:locationIndicator>
+      </fx:originator>
+      <!-- ICAO 4444 Field 5a -->
+      <fx:phase>ALERFA</fx:phase>
+    </fx:emergency>
+    <!--
+    	Groups the en route information about the flight 
+     -->
+    
+    <!--
+    	A general flight constraint is intended to express a constraint on the flight that cannot be associated with a specific trajectory point, 
+    	either because it is not relevant to only a specific point or because it is not possible to identify the point. [FF-ICE] 
+     -->
+    <!--
+    <fx:flightConstraint>
+    </fx:flightConstraint>
+    -->
+    <!-- A container of flight identifying data. -->
+    <fx:flightIdentification>
+      <!--
+      		A group of letters, figures or a combination thereof which is either identical to, or the coded equivalent of, 
+      		the aircraft call sign to be used in air-ground communications, and which is used to identify the aircraft in ground-ground air traffic services communications.  
+       -->
+      <!-- ICAO 4444 Field 7a -->
+	    <fx:aircraftIdentification>TEST52</fx:aircraftIdentification>
+      <!-- (Optional) A single reference for FF-ICE information pertinent to a flight that is unique globally. [ICAO Doc 9965]
+			This is a reference that uniquely identifies a specific flight and is independent of any particular system. -->
+	    <!-- GUFI -->
+	    <fx:gufi codeSpace="urn:uuid" creationTime="2026-09-14T16:18:00Z" namespaceDomain="FULLY_QUALIFIED_DOMAIN_NAME" namespaceIdentifier="">2c3242be-78e8-4861-874d-ff45a2466611</fx:gufi>
+    </fx:flightIdentification>
+    <!-- Originator of the Flight Plan, can be FF-ICE Participant or a non-upgraded ASP. [adapted from ICAO Draft FF-ICE Implementation Guidance] Equivalent to ATS 18 ORGN -->
+    <!-- 
+    <fx:flightPlanOriginator>
+    </fx:flightPlanOriginator>
+    -->
+    <!-- The FF-ICE Participant that submitted the flight plan. [ICAO Draft FF-ICE Implementation Guidance] -->
+    <!-- 
+    <fx:flightPlanSubmitter>
+    </fx:flightPlanSubmitter>
+    -->
+    <!-- The category of flight rules with which the pilot intends to comply. [ICAO Doc 4444, Appendix 2, Item 8] -->
+    <!-- ICAO 4444 Field 8a -->
+    <fx:flightRulesCategory>I</fx:flightRulesCategory>
+    <!-- Indication of the rule under which an air traffic controller provides categorical handling of a flight. -->
+    <!-- ICAO 4444 Field 8b -->
+    <fx:flightType>X</fx:flightType>
+    <!-- A person, organization or enterprise engaged in or offering to engage in an aircraft operation. [ICAO Annex 9 -->
+    <fx:operator>
+      <!-- ICAO 4444 Field 18 OPR -->
+      <fb:designatorIcao>TOW</fb:designatorIcao>
+      <!-- This output property is never written by NM B2B -->
+      <fb:operatingOrganization>
+        <!-- ICAO 4444 Field 18 OPR -->
+        <fb:name>THENAME</fb:name>
+      </fb:operatingOrganization>
+    </fx:operator>
+    <!--
+    	Contains information about radio communication failure 
+     -->
+    <!-- 
+    <fx:radioCommunicationFailure>
+    </fx:radioCommunicationFailure>
+    -->
+    <!--
+    	Any other plain-language remarks when required by the appropriate ATS authority or deemed necessary, by the pilot-in-command for the provision of air traffic services 
+     -->
+    <!-- ICAO 4444 Field 18 RMK -->
+    <fx:remarks>a remark</fx:remarks>
+    <!--
+    	A logical grouping for all Route Trajectory Groups associated with the flight. 
+     -->
+    <fx:routeTrajectoryGroup>
+      <!--
+      		The 4D Trajectory agreed to by a FF-ICE enabled Air Traffic Management Service Providers (eASP) after collaboration between the FF-ICE enabled airspace user (eAU) and the eASP.
+			The route of flight agreed to by a FF-ICE enabled Air Traffic Management Service Providers (eASP) after collaboration between the FF-ICE enabled airspace user (eAU) and the eASP. 
+       --> 
+      <fx:agreed>
+        <!--
+        	A zero-wind, standard atmosphere, unconstrained climb profile reflective of the flight capabilities and desired parameters during climb 
+         -->
+        <fx:climbProfile>
+        	<fx:profilePoint seqNum="0">
+			<fx:distance uom="M">0.0</fx:distance>
+			<fx:level>
+			    <fb:altitude uom="M">110.0</fb:altitude>
+			</fx:level>
+			<fx:time>P0DT0H0M0S</fx:time>
+		    </fx:profilePoint>
+		    <fx:profilePoint seqNum="1">
+			<fx:distance uom="M">6939.0</fx:distance>
+			<fx:level>
+			    <fb:altitude uom="M">610.0</fb:altitude>
+			</fx:level>
+			<fx:time>P0DT0H1M41S</fx:time>
+		    </fx:profilePoint>
+        </fx:climbProfile>
+        
+        
+        <!--
+        	Initially submitted by the airspace user, this defines the target speed in both Indicated Airspeed (IAS) and MACH so the aircraft can climb through the crossover altitude and target the MACH speed when needed 
+         -->
+        <fx:climbSchedule>
+		<fx:initialSpeed uom="KT">280</fx:initialSpeed>
+	  					<fx:subsequentSpeed uom="MACH">0.77</fx:subsequentSpeed>
+        </fx:climbSchedule>
+        
+        
+        <!--
+        	A zero-wind, standard atmosphere, unconstrained descent profile reflective of the flight capabilities and desired parameters during descent
+        -->
+         <fx:descentProfile>
+         	<fx:profilePoint seqNum="0">        
+			<fx:distance uom="M">236300.0</fx:distance>    
+			<fx:level>    
+			    <fb:altitude uom="M">11887.0</fb:altitude>
+			</fx:level>    
+			<fx:time>P0DT0H18M24S</fx:time>    
+		    </fx:profilePoint>        
+		    <fx:profilePoint seqNum="1">        
+			<fx:distance uom="M">197590.0</fx:distance>    
+			<fx:level>    
+			    <fb:altitude uom="M">10404.0</fb:altitude>
+			</fx:level>    
+			<fx:time>P0DT0H20M17S</fx:time>    
+		    </fx:profilePoint>
+		    <fx:profilePoint seqNum="2">        
+			<fx:distance uom="M">166603.0</fx:distance>    
+			<fx:level>    
+			    <fb:altitude uom="M">8691.0</fb:altitude>
+			</fx:level>    
+			<fx:time>P0DT0H25M58S</fx:time>    
+	  	</fx:profilePoint> 
+        </fx:descentProfile>
+        
+        <!--
+        	Initially submitted by the airspace user, this defines the target speed in both (Indicated Airspeed) IAS and MACH so the aircraft can descend through the crossover altitude and target the IAS speed when needed. 
+        -->
+        <fx:descentSchedule>
+        	<fx:initialSpeed uom="MACH">0.77</fx:initialSpeed>
+  					<fx:subsequentSpeed uom="KT">300</fx:subsequentSpeed>
+        </fx:descentSchedule>
+        
+        
+        <!--
+        	A container for information pertinent to a single point in a trajectory. The elements are ordered according to increasing time/distance from the start point. 
+         -->
+        <!-- ICAO 4444 Field 15c -->
+        <fx:element seqNum="0">
+                    <fx:point4D>
+                        <fx:level>
+                            <fb:flightLevel uom="SM">6</fb:flightLevel>
+                        </fx:level>
+                        <fx:pointProperty>
+                            <fx:reference>
+                                <fx:identifier>LIRF</fx:identifier>
+                                <fx:type>AERODROME</fx:type>
+                            </fx:reference>
+                        </fx:pointProperty>
+        
+                        <fx:position srsName="urn:ogc:def:crs:EPSG::4326">
+                            <fb:pos>52.45722222222222 9.426944444444445</fb:pos>
+                        </fx:position>
+                        
+                        <fx:predictedAirspeed uom="KT">250</fx:predictedAirspeed>
+                        <fx:time>
+                            <fx:absoluteTime>2026-09-14T16:30:00Z</fx:absoluteTime>
+                        </fx:time>
+                    </fx:point4D>
+                    <fx:routeDesignatorToNextElement>
+                        <fx:otherRouteDesignator>UNSPECIFIED</fx:otherRouteDesignator>
+                    </fx:routeDesignatorToNextElement>
+                </fx:element>
+                <fx:element seqNum="1">
+                    <fx:point4D>
+                        <fx:level>
+                            <fb:flightLevel uom="FL">300</fb:flightLevel>
+                        </fx:level>
+                        <fx:pointProperty>
+                            <fx:reference>
+                                <fx:identifier>NIKTI</fx:identifier>
+                                <fx:type>WAYPOINT</fx:type>
+                            </fx:reference>
+                        </fx:pointProperty>
+                        
+                        <fx:position srsName="urn:ogc:def:crs:EPSG::4326">
+                            <fb:pos>51.62611111111111 12.0575</fb:pos>
+                        </fx:position>
+                        
+                        <fx:predictedAirspeed uom="KT">250</fx:predictedAirspeed>
+                        <fx:time>
+                            <fx:absoluteTime>2026-09-14T16:35:00Z</fx:absoluteTime>
+                        </fx:time>
+                    </fx:point4D>
+
+                    <fx:routeChange>
+                        <fx:level>
+                            <fx:activation>PLAN_TO_ATTAIN</fx:activation>
+                            <fx:level>
+                                <fb:flightLevel uom="FL">350</fb:flightLevel>
+                            </fx:level>
+                        </fx:level>
+                    </fx:routeChange>
+     
+                    <fx:routeDesignatorToNextElement>
+                        <fx:otherRouteDesignator>DIRECT</fx:otherRouteDesignator>
+                    </fx:routeDesignatorToNextElement>
+                </fx:element>
+                <fx:element seqNum="2">
+                    <fx:point4D>
+                        <fx:level>
+                           <fb:flightLevel uom="FL">340</fb:flightLevel>
+                        </fx:level>
+                        <fx:pointProperty>
+                            <fx:reference>
+                                <fx:identifier>GOL</fx:identifier>
+                                <fx:type>WAYPOINT</fx:type>
+                            </fx:reference>
+                        </fx:pointProperty>
+                        
+                        <fx:position srsName="urn:ogc:def:crs:EPSG::4326">
+                            <fb:pos>51.20305555555556 15.010555555555555</fb:pos>
+                        </fx:position>
+                        
+                        <fx:predictedAirspeed uom="KT">250</fx:predictedAirspeed>
+                        <fx:time>
+                            <fx:absoluteTime>2026-09-14T16:40:00Z</fx:absoluteTime>
+                        </fx:time>
+                    </fx:point4D>
+                    <fx:routeDesignatorToNextElement>
+                        <fx:otherRouteDesignator>DIRECT</fx:otherRouteDesignator>
+                    </fx:routeDesignatorToNextElement>
+                </fx:element>
+                <fx:element seqNum="3">
+                    <fx:point4D>
+                        <fx:level>
+                            <fb:flightLevel uom="SM">8</fb:flightLevel>
+                        </fx:level>
+                        <fx:pointProperty>
+                            <fx:reference>
+                                <fx:identifier>LBSF</fx:identifier>
+                                <fx:type>AERODROME</fx:type>
+                            </fx:reference>
+                        </fx:pointProperty>
+                        
+                        <fx:position srsName="urn:ogc:def:crs:EPSG::4326">
+                            <fb:pos>52.331944444444446 16.966666666666665</fb:pos>
+                        </fx:position>
+                        
+                        <fx:predictedAirspeed uom="KT">0</fx:predictedAirspeed>
+                        <fx:time>
+                            <fx:absoluteTime>2026-09-14T18:45:00Z</fx:absoluteTime>
+                        </fx:time>
+                    </fx:point4D>
+                    <!--
+                    <fx:routeChange>
+                        <fx:level>
+                            <fx:activation>PLAN_TO_ATTAIN</fx:activation>
+                            <fx:level>
+                                <fb:flightLevel uom="SM">8</fb:flightLevel>
+                            </fx:level>
+                        </fx:level>
+                        <fx:speed>
+                            <fx:activation>PLAN_TO_ATTAIN</fx:activation>
+                            <fx:speed uom="KT">0</fx:speed>
+                        </fx:speed>
+                    </fx:routeChange>
+                    -->
+                    <fx:routeDesignatorToNextElement>
+                        <fx:otherRouteDesignator>DIRECT</fx:otherRouteDesignator>
+                    </fx:routeDesignatorToNextElement>
+                </fx:element>
+        <!--
+        		Contains information about the Flight Route. The route is comprised of Route Segments, which are comprised of Route Point/Airway pairs. Route also contains an expanded route 
+         -->
+        <fx:routeInformation>
+          <!-- The internationally agreed effective date of the AIRAC (Aeronautical Information Regulation and Control) data set that was used in the computation of the route/trajectory.  
+          <fx:airacReference>2001-01-01Z</fx:airacReference>
+          -->
+          
+          <!-- The filed altitude (flight level) for the first or the whole cruising portion of the flight. -->
+          <!-- ICAO 4444 Field 15b -->
+          <fx:cruisingLevel>
+            <!-- 
+            <fb:altitude uom="FT" xsi:type="fb:AltitudeType">0.0</fb:altitude>
+            -->
+            <fb:flightLevel uom="FL">290.0</fb:flightLevel>
+          </fx:cruisingLevel>
+          <!--
+          		The true airspeed for the first or the whole cruising portion of the flight.  This can be for a filed flight or an active flight.  This element is strategic in nature. 
+           -->
+          <!-- ICAO 4444 Field 15a -->
+          <fx:cruisingSpeed uom="MACH">0.77</fx:cruisingSpeed>
+          <!--
+          	The estimated amount of time from takeoff to reach a significant point or Flight Information Region (FIR) boundary along the route of flight. Elements are ordered according to increasing duration from start. 
+           -->
+          <!-- ICAO 4444 Field 18 EET -->
+          <fx:estimatedElapsedTime seqNum="0">
+            <fx:elapsedTime>P1D</fx:elapsedTime>
+            <fx:location>
+              <fx:region>REGI</fx:region>
+              <!-- point or longitude -->
+            </fx:location>
+          </fx:estimatedElapsedTime>
+          <!-- A string of route elements complying with PANS-ATM Item 15c -->
+          <!-- ICAO 4444 Field 15c -->
+	  <!--  <fx:routeText>DOLAP GOL ADORU ULMAR</fx:routeText> -->
+	<fx:routeText>DIK5T DIK IDOSA BETEX</fx:routeText>
+          <!--
+            For IFR flights, the estimated time required from take-off to arrive over that designated point, defined by reference to navigation aids, 
+            from which it is intended that an instrument approach procedure will be commenced, or, if no navigation aid is associated with the destination aerodrome, 
+            to arrive over the destination aerodrome. For VFR flights, the estimated time required from take-off to arrive over the destination aerodrome. [ICAO Doc 4444]
+            For a flight plan received from an aircraft in flight, the total estimated elapsed time is the estimated time from the first point of the route to which 
+            the flight plan applies to the termination point of the flight plan. [ICAO Doc 4444, Appendix 2, ITEM 16] 
+           -->
+          <!-- ICAO 4444 Field 16b -->
+          <fx:totalEstimatedElapsedTime>P1D</fx:totalEstimatedElapsedTime>
+        </fx:routeInformation>
+			  <!--     
+        	The estimated takeoff mass of the aircraft -->
+         
+        <fx:takeoffMass uom="KG">500.0</fx:takeoffMass>
+ 
+        
+      </fx:agreed>
+      <!--
+      		Represents the current flight plan concept described by ICAO PANS-ATM Doc 4444. 
+       -->
+      <!-- 
+      <fx:current>
+      </fx:current>
+      -->
+      <!--
+      		The preferred route of flight submitted by the FF-ICE enabled airspace user (eAU) to the FF-ICE enabled Air Traffic Management Service Providers (eASP) subject to required constraints.
+      		This trajectory indicates the preferred 4D trajectory submitted by the FF-ICE enabled airspace user (eAU) to the FF-ICE enabled Air Traffic Management Service Providers (eASP) subject to required constraints. 
+       -->
+      <!-- 
+      <fx:desired>
+      </fx:desired>
+      -->
+      <!--
+      		The 4D Trajectory used during the collaboration between the FF-ICE enabled airspace user (eAU) and the FF-ICE enabled Air Traffic Management Service Providers (eASP) in order to agree on a 4D trajectory.
+      		This trajectory is intended to be transitory. 
+      		This Route is used during collaboration between the FF-ICE enabled airspace user (eAU) and the FF-ICE enabled Air Traffic Management Service Providers (eASP) in order to agree on a route. This route field is intended to be transitory. 
+       -->
+      <!-- 
+      <fx:negotiating>
+      </fx:negotiating>
+      -->
+    </fx:routeTrajectoryGroup>
+    <!--
+    	The reason for special handling of a flight by ATS. [adapted from ICAO Doc 4444, Appendix 2, ITEM 18 STS/] 
+     -->
+    <!-- ICAO 4444 Field 18 STS --> 
+    <fx:specialHandling>ALTRV</fx:specialHandling>
+    <!--
+    	A container for supplementary information about the flight. This container does not capture the complete set of elements described in 
+    	ICAO Doc 4444 ITEM 19 "Supplementary Information"; it only contains those elements that could not be modeled more logically in other FIXM structures. 
+     -->
+    <fx:supplementaryInformation>
+      <!--
+      <fx:fuelEndurance>P1D</fx:fuelEndurance> -->
+      <!--
+      <fx:personsOnBoard>300</fx:personsOnBoard> -->
+      <!--
+      <fx:pilotInCommand>
+      <fb:name>ILARIA</fb:name>
+      </fx:pilotInCommand> -->
+     
+      <fx:supplementaryInformationSource> 
+        <!-- 
+        <fx:personOrOrganization>
+        </fx:personOrOrganization>
+        -->
+        <!-- ICAO 4444 Field 18 DEP ([13a=AFIL])-->
+        <fx:unit>
+          <fb:atcUnitNameOrAlternate>WQER</fb:atcUnitNameOrAlternate>
+          <fb:locationIndicator>MNOJ</fb:locationIndicator>
+        </fx:unit>
+      </fx:supplementaryInformationSource>
+    </fx:supplementaryInformation>
+  </flight_v4_3>
+  <!-- The flight plan version provided by the operator. (optional) -->
+  <operatorFlightPlanVersion_v4_3>6</operatorFlightPlanVersion_v4_3>
+  <!-- 
+  	The full list of events that affected the flight plan. Minimum length 1 
+  	Messages referring to the same flight plan shall be ordered by numerically sorting on 
+  	the size of the field eventHistory (because every new message has a new event) or picking the highest sequenceNumber. 
+  -->
+  <eventHistory>
+	<!-- <item>
+        <sequenceNumber>0</sequenceNumber>
+        <event>
+	<eventType>FPL</eventType>
+            <timestamp>2026-09-14 16:30:00</timestamp>
+            <originator>AUS</originator>
+        </event>
+	  </item>  -->
+	 <!-- <item>
+        <sequenceNumber>1</sequenceNumber>
+        <event>
+		<eventType>CNL</eventType>
+            <timestamp>2026-09-14 16:33:00</timestamp>
+    </event>
+    </item> -->
+	<item>
+        <sequenceNumber>2</sequenceNumber>
+        <event>
+	<eventType>FPL</eventType>
+            <timestamp>2026-09-14 16:30:00</timestamp>
+        </event>
+	  </item>
+	 <!--  <item>
+        <sequenceNumber>3</sequenceNumber>
+        <event>
+            <eventType>DEP</eventType>
+            <timestamp>2021-02-25 16:30:11</timestamp>
+        </event>
+    </item>
+    <item>
+        <sequenceNumber>4</sequenceNumber>
+        <event>
+            <eventType>AFP</eventType>
+            <timestamp>2021-02-25 13:05:15</timestamp>
+        </event>
+    </item> -->
+  </eventHistory>
+  <!-- Concerned air navigation units. (Optional) -->
+  <concernedUnits>
+    <item>ANU2</item>
+    <item>ANU1</item>
+  </concernedUnits>
+  <!-- Flight Plan Revalidation information. (Optional) -->
+  <!--
+  <revalidationInformation>
+  </revalidationInformation>
+  -->
+</ffice:FficePublicationMessage>
+`;
+
+    const editor = document.getElementById("editor");
+    const output = document.getElementById("xmlOutput");
+    const statusText = document.getElementById("statusText");
+    const localFiles = document.getElementById("localFiles");
+    const fileInput = document.getElementById("fileInput");
+    const chooseFolderBtn = document.getElementById("chooseFolderBtn");
+    const reparseBtn = document.getElementById("reparseBtn");
+    const formatBtn = document.getElementById("formatBtn");
+    const resetBtn = document.getElementById("resetBtn");
+
+    const undoBtn = document.getElementById("undoBtn");
+    const redoBtn = document.getElementById("redoBtn");
+
+    const historyStack = [];
+
+    const searchInput = document.getElementById("searchInput");
+    const findNextBtn = document.getElementById("findNextBtn");
+    const findPrevBtn = document.getElementById("findPrevBtn");
+
+    let xmlDocument = null;
+    let selectedFolder = null;
+
+    let historyIndex = -1;
+
+    undoBtn.addEventListener("click", () => {
+        if (historyIndex <= 0) return;
+        historyIndex--;
+        const xmlContent = getHistoryEntryAt(historyIndex);
+        if (xmlContent !== null) {
+            output.value = xmlContent;
+            try {
+                xmlDocument = parseXML(xmlContent);
+                renderEditor();
+                setStatus("Undo successful");
+            } catch (error) {
+                setStatus(`Undo failed: ${error.message}`, true);
+            }
+        }
+    });
+
+    redoBtn.addEventListener("click", () => {
+        if (historyIndex >= historyStack.length - 1) return;
+        historyIndex++;
+        const xmlContent = getHistoryEntryAt(historyIndex);
+        if (xmlContent !== null) {
+            output.value = xmlContent;
+            try {
+                xmlDocument = parseXML(xmlContent);
+                renderEditor();
+                setStatus("Redo successful");
+            } catch (error) {
+                setStatus(`Redo failed: ${error.message}`, true);
+            }
+        }
+    });
+
+    function refreshMatchesHighlight() {
+        const searchTerm = searchInput.value.trim();
+        if (searchTerm === "") {
+            clearHighlights();
+            return;
+        }
+        highlightMatches(searchTerm);
+    }
+
+    searchInput.addEventListener("input", () => {
+        refreshMatchesHighlight();
+    });
+
+    findNextBtn.addEventListener("click", () => {
+        const searchTerm = searchInput.value.trim();
+        if (searchTerm === "") return;
+        findNextMatch(searchTerm);
+    });
+
+    findPrevBtn.addEventListener("click", () => {
+        const searchTerm = searchInput.value.trim();
+        if (searchTerm === "") return;
+        findPreviousMatch(searchTerm);
+    });
+
+    function getNodeSimpleString(nodeCard) {
+        const nodeName = nodeCard.querySelector(".node-tag")?.textContent || "";
+        const nodeValue = nodeCard.querySelector(".text-editor input")?.value || "";
+        const attributes = Array.from(nodeCard.querySelectorAll(".attribute-row"));
+        const attributesStr = attributes.map(attr => {
+            const name = attr.querySelector(".attribute-name")?.textContent || "";
+            const value = attr.querySelector("input")?.value || "";
+            return `${name}=${value}`;
+        }).join(" ");
+        const combinedText = `${nodeName} ${nodeValue} ${attributesStr}`;
+        return combinedText;
+    }
+
+    function clearHighlights() {
+        const highlightedElements = editor.querySelectorAll(".highlight");
+        highlightedElements.forEach(el => el.classList.remove("highlight"));
+    }
+
+    function highlightMatches(searchTerm) {
+        clearHighlights();
+        const elements = editor.querySelectorAll(".node-card");
+        elements.forEach(el => {
+            // Node name, node text value, attribute names and values
+            const nodeSimpleString = getNodeSimpleString(el).toLowerCase();
+            if (nodeSimpleString.includes(searchTerm.toLowerCase())) {
+                if (!el.classList.contains("highlight")) {
+                    el.classList.add("highlight");
+                }
+            }
+        });
+    }
+
+    function findNextMatch(searchTerm) {
+        refreshMatchesHighlight();
+
+        const highlightedElements = Array.from(editor.querySelectorAll(".highlight"));
+        if (highlightedElements.length === 0) return;
+
+        const currentIndex = highlightedElements.findIndex(el => el.classList.contains("current-highlight"));
+        let nextIndex = (currentIndex + 1) % highlightedElements.length;
+
+        if (currentIndex >= 0) {
+            highlightedElements[currentIndex].classList.remove("current-highlight");
+        }
+
+        highlightedElements[nextIndex].classList.add("current-highlight");
+        scrollHighlightIntoView(highlightedElements[nextIndex]);
+        
+    }
+
+    function findPreviousMatch(searchTerm) {
+        refreshMatchesHighlight();
+
+        const highlightedElements = Array.from(editor.querySelectorAll(".highlight"));
+        if (highlightedElements.length === 0) return;
+
+        const currentIndex = highlightedElements.findIndex(el => el.classList.contains("current-highlight"));
+        let prevIndex = (currentIndex - 1 + highlightedElements.length) % highlightedElements.length;
+
+        if (currentIndex >= 0) {
+            highlightedElements[currentIndex].classList.remove("current-highlight");
+        }
+
+        highlightedElements[prevIndex].classList.add("current-highlight");
+        scrollHighlightIntoView(highlightedElements[prevIndex]);
+    }
+
+    function scrollHighlightIntoView(scrollElement) {
+        let elementToScroll = scrollElement;
+        let maxScrollAttempts = 100; // Prevent infinite loops
+        while (elementToScroll && elementToScroll.offsetParent === null && maxScrollAttempts > 0) {
+            elementToScroll = elementToScroll.parentElement;
+            maxScrollAttempts--;
+        }
+        if (elementToScroll) {
+            let actualElementToScroll = elementToScroll.querySelector(".node-card") || elementToScroll;
+            actualElementToScroll.scrollIntoView({ behavior: "smooth", block: "center" });
+        } else {
+            scrollElement.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+    }
+
+    function setStatus(text, isError = false) {
+        statusText.textContent = text;
+        statusText.style.color = isError ? "#ff9b9b" : "";
+    }
+
+    function escapeText(value) {
+        return value
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;");
+    }
+
+    function escapeAttribute(value) {
+        return escapeText(String(value))
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&apos;");
+    }
+
+    function serializePretty(doc) {
+        const root = doc.documentElement;
+        if (!root) return "";
+
+        const declaration = doc.xmlVersion || doc.characterSet
+            ? `<?xml version="${doc.xmlVersion || "1.0"}" encoding="UTF-8"?>\n`
+            : `<?xml version="1.0" encoding="UTF-8"?>\n`;
+
+        return declaration + serializeElement(root, 0);
+    }
+
+    function serializeElement(element, depth) {
+        const indent = "  ".repeat(depth);
+        const attrs = Array.from(element.attributes)
+            .map(a => ` ${a.name}="${escapeAttribute(a.value)}"`)
+            .join("");
+
+        const elementChildren = Array.from(element.children);
+        const textNodes = Array.from(element.childNodes)
+            .filter(n => n.nodeType === Node.TEXT_NODE && n.nodeValue.trim() !== "");
+
+        if (elementChildren.length === 0 && textNodes.length === 0) {
+            return `${indent}<${element.tagName}${attrs} />`;
+        }
+
+        if (elementChildren.length === 0) {
+            const text = textNodes.map(n => n.nodeValue).join("");
+            return `${indent}<${element.tagName}${attrs}>${escapeText(text)}</${element.tagName}>`;
+        }
+
+        const children = elementChildren
+            .map(child => serializeElement(child, depth + 1))
+            .join("\n");
+
+        return `${indent}<${element.tagName}${attrs}>\n${children}\n${indent}</${element.tagName}>`;
+    }
+
+    function pushToHistory(xmlContent) {
+        if (historyIndex < historyStack.length - 1) {
+            historyStack.splice(historyIndex + 1);
+        }
+        historyIndex = historyStack.length;
+        historyStack.push(xmlContent);
+    }
+
+    function getHistoryEntryAt(index) {
+        if (index < 0 || index >= historyStack.length) return null;
+        return historyStack[index];
+    }
+
+    function updateXmlOutput(xmlContent) {
+        pushToHistory(xmlContent);
+        output.value = xmlContent;
+    }
+
+    function parseXML(text) {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(text, "application/xml");
+        const error = doc.getElementsByTagName("parsererror")[0];
+        if (error) {
+            throw new Error(error.textContent || "Invalid XML");
+        }
+        if (!doc.documentElement) {
+            throw new Error("XML document has no root element.");
+        }
+        return doc;
+    }
+
+    function loadXML(text, sourceName = "XML") {
+        try {
+            xmlDocument = parseXML(text);
+            // output.value = serializePretty(xmlDocument);
+            updateXmlOutput(serializePretty(xmlDocument));
+            renderEditor();
+            setStatus(`Loaded: ${sourceName}`);
+        } catch (error) {
+            setStatus(`XML error: ${error.message}`, true);
+            alert(`Could not parse XML.\n\n${error.message}`);
+        }
+    }
+
+    function getMeaningfulText(element) {
+        return Array.from(element.childNodes)
+            .filter(node => node.nodeType === Node.TEXT_NODE)
+            .map(node => node.nodeValue)
+            .join("")
+            .trim();
+    }
+
+    function setSimpleText(element, value) {
+        Array.from(element.childNodes).forEach(node => {
+            if (node.nodeType === Node.TEXT_NODE) element.removeChild(node);
+        });
+        if (value !== "") element.appendChild(element.ownerDocument.createTextNode(value));
+    }
+
+    function updateOutputFromDocument() {
+        if (!xmlDocument) return;
+        updateXmlOutput(serializePretty(xmlDocument));
+    }
+
+    function createInput(value, onInput) {
+        const input = document.createElement("input");
+        input.type = "text";
+        input.value = value;
+        input.addEventListener("input", onInput);
+        return input;
+    }
+
+    const nodeNamesCounter = {};
+
+    function renderNode(element, isRoot = false) {
+        const wrapper = document.createElement("div");
+        wrapper.className = "node" + (isRoot ? " root" : "");
+
+        // Update the node counter
+        nodeNamesCounter[element.tagName] = (nodeNamesCounter[element.tagName] || 0) + 1;
+        const nodeIndex = nodeNamesCounter[element.tagName];
+
+        wrapper.dataset.tagName = element.tagName;
+        wrapper.dataset.nodeIndex = nodeNamesCounter[element.tagName];
+
+        const card = document.createElement("div");
+        card.className = "node-card";
+
+        const head = document.createElement("div");
+        head.className = "node-head";
+
+        const tag = document.createElement("span");
+        tag.className = "node-tag";
+        tag.textContent = `<${element.tagName}>`;
+        head.appendChild(tag);
+
+        const childCount = Array.from(element.children).length;
+        const attrCount = element.attributes.length;
+        const meta = document.createElement("span");
+        meta.className = "node-meta";
+        meta.textContent = `${attrCount} attr${attrCount === 1 ? "" : "s"}${childCount ? ` · ${childCount} child${childCount === 1 ? "" : "ren"}` : ""}`;
+        const metaContainer = document.createElement("div");
+        metaContainer.className = "node-meta-container";
+        metaContainer.appendChild(meta);
+        const focusBtn = document.createElement("button");
+        focusBtn.className = "focus-btn";
+        focusBtn.title = "Focus on this node";
+        focusBtn.textContent = "🔍";
+        focusBtn.addEventListener("click", event => {
+            event.stopPropagation();
+            getFocusOutputIndexMatch(element, output.value, 0, nodeIndex);
+        });
+        function getFocusOutputIndexMatch(xmlElement, xmlOutput, skippedChars, matchNumberCounter) {
+            // Place the cursor in the corresponding XML input field and select the text
+            let startIndex = -1;
+            let length = 0;
+            let maxIndent = 0;
+            for (let i = 0; i < maxIndent; i++) {
+                // Find exact match
+                let xmlText = serializeElement(xmlElement, i);
+                startIndex = xmlOutput.indexOf(xmlText);
+                length = xmlText.length;
+                if (startIndex !== -1) break;
+            }
+            if (startIndex === -1) {
+                let xmlText = serializeElement(xmlElement, 0);
+                let lines = xmlText.split("\n");
+                xmlText = lines.map(line => line.trim()).join("");
+                startIndex = xmlOutput.indexOf(xmlText);
+                length = xmlText.length;
+                if (startIndex === -1) {
+                    // If still not found, try to find the tag on the single line
+                    let xmlText = serializeElement(xmlElement, 0);
+                    let tagName = xmlText.substring(0, xmlText.indexOf(">") + 1);
+                    startIndex = xmlOutput.indexOf(tagName);
+                    length = tagName.length;
+                }
+            }
+            // Check if results found and focus on output if needed
+            if (startIndex === -1) {
+                // Element not found, return false
+                return false;
+            }
+            if (matchNumberCounter > 1) {
+                // Decrement the match number and try again
+                let totalSkippedChars = skippedChars + startIndex + length;
+                let foundNext = getFocusOutputIndexMatch(xmlElement, xmlOutput.substring(startIndex + length), totalSkippedChars, matchNumberCounter - 1);
+                if (foundNext) {
+                    return true;
+                }
+            }
+            // Start index found and no next element, focus on the output
+            output.focus();
+            let startIndexWithSkipped = startIndex + skippedChars;
+            output.setSelectionRange(startIndexWithSkipped, startIndexWithSkipped + length);
+            // Scroll to the selection
+            const lineHeight = 20; // Approximate line height in pixels
+            const linesBefore = output.value.substring(0, startIndexWithSkipped).split("\n").length - 1;
+            output.scrollTop = linesBefore * lineHeight;
+            return true;
+        }
+        metaContainer.appendChild(focusBtn);
+        head.appendChild(metaContainer);
+
+        card.appendChild(head);
+
+        const body = document.createElement("div");
+        body.className = "node-body";
+
+        if (attrCount > 0) {
+            const label = document.createElement("div");
+            label.className = "section-label";
+            label.textContent = "Attributes";
+            body.appendChild(label);
+
+            const attrList = document.createElement("div");
+            attrList.className = "attribute-list";
+
+            Array.from(element.attributes).forEach(attr => {
+                const row = document.createElement("div");
+                row.className = "attribute-row";
+
+                const name = document.createElement("div");
+                name.className = "attribute-name";
+                name.title = attr.name;
+                name.textContent = attr.name;
+
+                const input = createInput(attr.value, event => {
+                    element.setAttribute(attr.name, event.target.value);
+                    updateOutputFromDocument();
+                });
+
+                row.appendChild(name);
+                row.appendChild(input);
+                attrList.appendChild(row);
+            });
+
+            body.appendChild(attrList);
+        }
+
+        const hasElementChildren = childCount > 0;
+        const hasText = getMeaningfulText(element) !== "";
+
+        if (!hasElementChildren && (hasText || attrCount === 0)) {
+            const textWrapper = document.createElement("div");
+            textWrapper.className = "text-editor";
+
+            const label = document.createElement("div");
+            label.className = "section-label";
+            label.textContent = "Text content";
+            textWrapper.appendChild(label);
+
+            const input = createInput(getMeaningfulText(element), event => {
+                setSimpleText(element, event.target.value);
+                updateOutputFromDocument();
+            });
+            textWrapper.appendChild(input);
+            body.appendChild(textWrapper);
+        }
+
+        card.appendChild(body);
+        wrapper.appendChild(card);
+
+        Array.from(element.children).forEach(child => {
+            wrapper.appendChild(renderNode(child, false));
+        });
+
+        // Event listener to toggle visibility of child nodes when clicking on the head
+        head.addEventListener("click", () => {
+            const isHidden = wrapper.classList.toggle("node-hidden");
+            if (isHidden) {
+                setStatus(`Collapsed <${element.tagName}>`);
+            } else {
+                setStatus(`Expanded <${element.tagName}>`);
+            }
+        });
+
+        return wrapper;
+    }
+
+    function renderEditor() {
+        editor.innerHTML = "";
+        if (!xmlDocument || !xmlDocument.documentElement) {
+            editor.innerHTML = `<div class="empty-state"><div><strong>No XML loaded</strong><br>Load an XML file to begin.</div></div>`;
+            return;
+        }
+        editor.appendChild(renderNode(xmlDocument.documentElement, true));
+    }
+
+    async function chooseXMLFolder() {
+        if (!window.showDirectoryPicker) {
+            alert("This browser does not expose the File System Access API. Use Upload XML instead, or run the page in a browser that supports directory picking (such as a recent Chrome/Edge version).");
+            return;
+        }
+
+        try {
+            selectedFolder = await window.showDirectoryPicker({ mode: "read" });
+            localFiles.innerHTML = "";
+
+            const xmlEntries = [];
+            for await (const [name, handle] of selectedFolder.entries()) {
+                if (handle.kind === "file" && name.toLowerCase().endsWith(".xml")) {
+                    xmlEntries.push([name, handle]);
+                }
+            }
+
+            xmlEntries.sort((a, b) => a[0].localeCompare(b[0]));
+
+            if (xmlEntries.length === 0) {
+                localFiles.innerHTML = `<option value="">No .xml files found</option>`;
+                setStatus("Selected folder contains no XML files", true);
+                return;
+            }
+
+            localFiles.innerHTML = `<option value="">Select an XML file…</option>`;
+            xmlEntries.forEach(([name], index) => {
+                const option = document.createElement("option");
+                option.value = String(index);
+                option.textContent = name;
+                localFiles.appendChild(option);
+            });
+
+            localFiles._xmlEntries = xmlEntries;
+            setStatus(`${xmlEntries.length} XML file${xmlEntries.length === 1 ? "" : "s"} found`);
+        } catch (error) {
+            if (error && error.name === "AbortError") return;
+            setStatus(`Folder error: ${error.message}`, true);
+        }
+    }
+
+    localFiles.addEventListener("change", async () => {
+        const entries = localFiles._xmlEntries || [];
+        const index = Number(localFiles.value);
+        if (!Number.isInteger(index) || !entries[index]) return;
+
+        try {
+            const [name, handle] = entries[index];
+            const file = await handle.getFile();
+            const text = await file.text();
+            loadXML(text, name);
+        } catch (error) {
+            setStatus(`Could not read XML: ${error.message}`, true);
+        }
+    });
+
+    fileInput.addEventListener("change", async event => {
+        const file = event.target.files[0];
+        if (!file) return;
+        try {
+            loadXML(await file.text(), file.name);
+        } catch (error) {
+            setStatus(`Could not read file: ${error.message}`, true);
+        } finally {
+            fileInput.value = "";
+        }
+    });
+
+    reparseBtn.addEventListener("click", () => {
+        const text = output.value.trim();
+        if (!text) {
+            setStatus("XML output is empty", true);
+            return;
+        }
+
+        try {
+            xmlDocument = parseXML(text);
+            renderEditor();
+            // output.value = serializePretty(xmlDocument);
+            updateXmlOutput(serializePretty(xmlDocument));
+            setStatus("Reparsed successfully. Editor reflects the current XML.");
+        } catch (error) {
+            setStatus(`Cannot reparse: ${error.message}`, true);
+            alert(`The XML on the right is invalid.\n\n${error.message}`);
+        }
+    });
+
+    function formatXMLText(text) {
+        const doc = parseXML(text);
+        const serializer = new XMLSerializer();
+        const declarationMatch = text.trim().match(/^<\?xml\b[^?]*\?>/i);
+        const declaration = declarationMatch ? declarationMatch[0] : '<?xml version="1.0" encoding="UTF-8"?>';
+
+        function formatNode(node, depth = 0) {
+            const indent = "  ".repeat(depth);
+
+            if (node.nodeType === Node.ELEMENT_NODE) {
+                const attrs = Array.from(node.attributes)
+                    .map(a => ` ${a.name}="${escapeAttribute(a.value)}"`)
+                    .join("");
+
+                const children = Array.from(node.childNodes);
+                const elementChildren = children.filter(n => n.nodeType === Node.ELEMENT_NODE);
+                const meaningfulText = children
+                    .filter(n => n.nodeType === Node.TEXT_NODE && n.nodeValue.trim() !== "")
+                    .map(n => n.nodeValue)
+                    .join("");
+                const comments = children.filter(n => n.nodeType === Node.COMMENT_NODE);
+                const cdata = children.filter(n => n.nodeType === Node.CDATA_SECTION_NODE);
+
+                if (children.length === 0) {
+                    return `${indent}<${node.tagName}${attrs} />`;
+                }
+
+                // Keep mixed/text content inline rather than destroying its structure.
+                if (elementChildren.length === 0 && comments.length === 0 && cdata.length === 0) {
+                    if (meaningfulText === "") {
+                        return `${indent}<${node.tagName}${attrs} />`;
+                    }
+                    return `${indent}<${node.tagName}${attrs}>${escapeText(meaningfulText)}</${node.tagName}>`;
+                }
+
+                const childParts = children
+                    .filter(n => !(n.nodeType === Node.TEXT_NODE && n.nodeValue.trim() === ""))
+                    .map(n => formatNode(n, depth + 1));
+
+                return `${indent}<${node.tagName}${attrs}>\n${childParts.join("\n")}\n${indent}</${node.tagName}>`;
+            }
+
+            if (node.nodeType === Node.COMMENT_NODE) {
+                return `${indent}<!--${node.nodeValue}-->`;
+            }
+
+            if (node.nodeType === Node.CDATA_SECTION_NODE) {
+                return `${indent}<![CDATA[${node.nodeValue}]]>`;
+            }
+
+            if (node.nodeType === Node.PROCESSING_INSTRUCTION_NODE) {
+                return `${indent}<?${node.target}${node.data ? " " + node.data : ""}?>`;
+            }
+
+            // Do not emit insignificant whitespace-only text nodes.
+            if (node.nodeType === Node.TEXT_NODE) {
+                return `${indent}${escapeText(node.nodeValue)}`;
+            }
+
+            return `${indent}${serializer.serializeToString(node)}`;
+        }
+
+        return declaration + "\n" + formatNode(doc.documentElement, 0);
+    }
+
+    formatBtn.addEventListener("click", () => {
+        const text = output.value.trim();
+        if (!text) {
+            setStatus("XML output is empty", true);
+            return;
+        }
+
+        try {
+            // Format the XML currently shown on the right, without rebuilding the visual editor.
+            // output.value = formatXMLText(text);
+            updateXmlOutput(formatXMLText(text));
+            setStatus("XML formatted");
+        } catch (error) {
+            setStatus(`Cannot format invalid XML: ${error.message}`, true);
+        }
+    });
+
+    resetBtn.addEventListener("click", () => {
+        if (SAMPLE_XML === null) {
+            setStatus("No built-in example available to reset to", true);
+            return;
+        }
+        loadXML(SAMPLE_XML, "built-in example");
+        localFiles.value = "";
+        setStatus("Reset to built-in example");
+    });
+
+    chooseFolderBtn.addEventListener("click", chooseXMLFolder);
+
+    if (SAMPLE_XML) {
+        loadXML(SAMPLE_XML, "built-in example");
+    }
+})();
+</script>
+</body>
+</html>
