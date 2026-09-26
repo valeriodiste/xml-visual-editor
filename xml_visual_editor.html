@@ -412,6 +412,9 @@
         opacity: 0.5 !important;
         cursor: not-allowed;
     }
+    .contextMenu menuitem.danger-menu-item {
+        color: var(--danger);
+    }
     .contextMenu menuItemSeparator {
         display: block;
         height: 1px;
@@ -538,7 +541,7 @@
     <menuItemSeparator></menuItemSeparator>
     <!-- <menuitem id="addAttributeBtn">Add Attribute</menuitem>
     <menuItemSeparator></menuItemSeparator> -->
-    <menuitem id="deleteNodeBtn">Delete Node</menuitem>
+    <menuitem id="deleteNodeBtn" class="danger-menu-item">Delete Node</menuitem>
 </context-menu-node>
 <context-menu-attribute id="contextMenuAttribute" class="contextMenu hidden">
     <!-- <menuitem id="copyAttributeBtn">Copy Attribute</menuitem>
@@ -547,18 +550,18 @@
     <menuitem id="addAttributeAboveBtn">Add Attribute Above</menuitem>
     <menuitem id="addAttributeBelowBtn">Add Attribute Below</menuitem>
     <menuItemSeparator></menuItemSeparator> -->
-    <menuitem id="moveAttributeUpBtn">Move Attribute Up</menuitem>
+    <!-- <menuitem id="moveAttributeUpBtn">Move Attribute Up</menuitem>
     <menuitem id="moveAttributeDownBtn">Move Attribute Down</menuitem>
-    <menuItemSeparator></menuItemSeparator>
-    <menuitem id="deleteAttributeBtn">Delete Attribute</menuitem>
+    <menuItemSeparator></menuItemSeparator> -->
+    <menuitem id="deleteAttributeBtn" class="danger-menu-item">Delete Attribute</menuitem>
 </context-menu-attribute>
 
 <script>
 (() => {
     "use strict";
 
-    const SAMPLE_XML = null;
-    const SAMPLE_XML_ALT = `<?xml version="1.0" encoding="UTF-8"?>
+    const SAMPLE_XML_ALT = null;
+    const SAMPLE_XML = `<?xml version="1.0" encoding="UTF-8"?>
 <!--
 	Author:   Leonardo Spa
 	
@@ -1519,7 +1522,8 @@
 
     function loadXML(text, sourceName = "XML") {
         try {
-            xmlDocument = parseXML(text);
+            let parsedDoc = parseXML(text);
+            xmlDocument = parsedDoc;
             updateXmlOutput(serializePretty(xmlDocument));
             renderEditor();
             setStatus(`Loaded: ${sourceName}`);
@@ -2142,17 +2146,47 @@
     //     event.preventDefault();
     //     // TODO: implement
     // });
-    document.getElementById("moveAttributeUpBtn").addEventListener("click", event => {
-        event.preventDefault();
-        // TODO: implement
-    });
-    document.getElementById("moveAttributeDownBtn").addEventListener("click", event => {
-        event.preventDefault();
-        // TODO: implement
-    });
+    // document.getElementById("moveAttributeUpBtn").addEventListener("click", event => {
+    //      event.preventDefault();
+    //     // TODO: implement
+    // });
+    // document.getElementById("moveAttributeDownBtn").addEventListener("click", event => {
+    //     event.preventDefault();
+    //     // TODO: implement
+    // });
     document.getElementById("deleteAttributeBtn").addEventListener("click", event => {
         event.preventDefault();
-        // TODO: implement
+        let targetAttributeRow = document.querySelector(".context-menu-target");
+        if (!targetAttributeRow) {
+            console.log("No target attribute found for deletion");
+            return;
+        }
+        let attributeName = targetAttributeRow.querySelector(".attribute-name").textContent;
+        let targetNodeCard = targetAttributeRow.closest(".node-card");
+        if (!targetNodeCard) {
+            console.log("No parent node found for the target attribute");
+            return;
+        }
+        let targetNode = targetNodeCard.closest(".node");
+        let xmlElement = targetNode.dataset.elementXml;
+        // Update the XML output by removing the attribute from the target node
+        let sanitizedAttributeName = attributeName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // Escape special regex characters
+        let newOutput = xmlElement.replace(new RegExp(`\\s+${sanitizedAttributeName}="[^"]*"`), "");
+        newOutput = output.value.replace(xmlElement, newOutput);
+        if (newOutput === output.value) {
+            console.log("Failed to delete attribute: target node not found in output:\n" + xmlElement);
+            return;
+        }
+        output.value = newOutput;
+        try {
+            loadXML(newOutput, "DELETED ATTRIBUTE");
+            let loaded = renderEditor();
+            let serialized = serializePretty(xmlDocument);
+            updateXmlOutput(serialized);
+            setStatus("Attribute deleted");
+        } catch (error) {
+            setStatus(`Cannot delete attribute: ${error.message}`, true);
+        }
     });
 
     // Context menu functions
